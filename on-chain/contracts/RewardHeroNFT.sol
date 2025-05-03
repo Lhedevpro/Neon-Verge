@@ -1,0 +1,440 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+
+contract RewardHeroNFT is ERC721 {
+//__________________________________________________________Enums__________________________________________________________
+//__________________________________________________________Structs__________________________________________________________
+    uint8 public constant COMMON = 0;
+    uint8 public constant RARE = 1;
+    uint8 public constant EPIC = 2;
+    uint8 public constant LEGENDARY = 3;
+    struct HeroStats {
+        uint8 class;
+        uint8 _STR;
+        uint8 _DEX;
+        uint8 _INT;
+        uint8 _VIT;
+        uint8 _CHA;
+        uint8 _LCK;
+        uint16 imgId;
+        bool isNotsoulbound;
+        uint8 rarity;
+        uint256 tokenId;
+        address owner;
+    }
+
+    struct RarityProbabilities {
+        uint256 common;
+        uint256 rare;
+        uint256 epic;
+        uint256 legendary;
+    }
+
+    RarityProbabilities public rarityProbs = RarityProbabilities(70000, 25000, 4990, 10);
+
+    mapping(uint256 => HeroStats) public heroStats;
+    mapping(uint256 => string) public heroNames;
+    mapping(address => uint256) public ownerToTokenId;
+    mapping(address => bool) public transferWhitelist;
+    mapping(address => bool) private _hasMinted;
+    bool public publicMintActive = true;
+
+    uint256 public nextTokenId = 1;
+    uint16 public nextUniqueimgId = 26;
+    address private immutable _owner;
+    uint8 maxhero = 1;
+//__________________________________________________________Constructor__________________________________________________________
+    constructor() ERC721 ("Neon Verge: Heroes", "NEONHERO"){
+        _owner = msg.sender;
+        transferWhitelist[msg.sender] = true;
+        _safeMint(msg.sender, nextTokenId);
+        heroStats[nextTokenId] = HeroStats(1, 10, 11, 14, 9, 7, 6, 25, false, LEGENDARY, nextTokenId, msg.sender);
+        heroNames[nextTokenId] = "Genesis";
+        nextTokenId++;
+    }
+//__________________________________________________________Mint functions__________________________________________________________
+
+    function mintCommonHero() external returns (uint256) {
+        require(publicMintActive, "Public mint is not active");
+        require(!_hasMinted[msg.sender], "You can only mint 1 heroes");
+        require(balanceOf(msg.sender) <= maxhero, "You can only mint 1 heroes");
+        _hasMinted[msg.sender] = true;
+        _safeMint(msg.sender, nextTokenId);
+        heroStats[nextTokenId] = generateRandomStats("NV Hero", COMMON);
+        heroNames[nextTokenId] = "NV Hero";
+        uint256 currentTokenId = nextTokenId;
+        nextTokenId++;
+        return currentTokenId;
+    }
+
+    function mintHero(string memory name, bool useNewImgId) external {
+        require(publicMintActive, "Public mint is not active");
+        require(balanceOf(msg.sender) <= maxhero, "You can only mint 1 heroes");
+        
+        uint8 rarity = generateRandomRarity();
+        _safeMint(msg.sender, nextTokenId);
+        HeroStats memory stats = generateRandomStats(name, rarity);
+        
+        if (useNewImgId) {
+            stats.imgId = nextUniqueimgId;
+            nextUniqueimgId++;
+        }
+        
+        heroStats[nextTokenId] = stats;
+        heroNames[nextTokenId] = name;
+        nextTokenId++;
+    }
+
+    function ownerMint(
+        string memory name,
+        uint8 class,
+        uint8 _STR,
+        uint8 _DEX,
+        uint8 _INT,
+        uint8 _VIT,
+        uint8 _CHA,
+        uint8 _LCK,
+        uint16 imgId,
+        bool isNotsoulbound,
+        uint8 rarity,
+        bool randomRarity,
+        bool manualImgId,
+        address heroOwner
+    ) external {
+        require(msg.sender == _owner, "Only owner can mint special heroes");
+        require(heroOwner != address(0), "Invalid hero owner address");
+        
+        if (!manualImgId) {
+            imgId = nextUniqueimgId;
+            nextUniqueimgId++;
+        }
+
+        _safeMint(heroOwner, nextTokenId);
+        
+        uint8 finalRarity = rarity;
+        if (randomRarity) {
+            finalRarity = generateRandomRarity();
+        }
+        
+        heroStats[nextTokenId] = HeroStats(
+            class,
+            _STR,
+            _DEX,
+            _INT,
+            _VIT,
+            _CHA,
+            _LCK,
+            imgId,
+            isNotsoulbound,
+            finalRarity,
+            nextTokenId,
+            heroOwner
+        );
+        heroNames[nextTokenId] = name;
+        nextTokenId++;
+    }
+
+    function generateRandomRarity() internal view returns (uint8) {
+        uint256 rand = uint256(keccak256(abi.encodePacked(
+            block.timestamp,
+            block.prevrandao,
+            msg.sender,
+            gasleft()
+        )));
+        
+        uint256 rarityRand = rand % 100000;
+        if (rarityRand < rarityProbs.common) {
+            return COMMON;
+        } else if (rarityRand < rarityProbs.common + rarityProbs.rare) {
+            return RARE;
+        } else if (rarityRand < rarityProbs.common + rarityProbs.rare + rarityProbs.epic) {
+            return EPIC;
+        } else {
+            return LEGENDARY;
+        }
+    }
+
+    function generateRandomStats(string memory name, uint8 rarity) internal view returns (HeroStats memory) {
+        uint256 rand = uint256(keccak256(abi.encodePacked(
+            block.timestamp,
+            block.prevrandao,
+            msg.sender,
+            gasleft()
+        )));
+
+        // Générer les stats en fonction de la rareté
+        uint8 minStat = 1;
+        uint8 maxStat = 10;
+        
+        if (rarity == RARE) {
+            minStat = 3;
+            maxStat = 12;
+        } else if (rarity == EPIC) {
+            minStat = 5;
+            maxStat = 14;
+        } else if (rarity == LEGENDARY) {
+            minStat = 7;
+            maxStat = 16;
+        }
+
+        // Générer les stats et trouver la plus haute valeur
+        uint8[6] memory baseStats;
+        uint8 maxStatValue = 0;
+        uint8 maxStatIndex = 0;
+
+        for (uint8 i = 0; i < 6; i++) {
+            uint256 shifted = uint256(keccak256(abi.encode(rand, i)));
+            baseStats[i] = uint8((shifted % (maxStat - minStat + 1)) + minStat);
+            if (baseStats[i] > maxStatValue) {
+                maxStatValue = baseStats[i];
+                maxStatIndex = i;
+            } else if (baseStats[i] == maxStatValue) {
+                maxStatIndex = i;
+                baseStats[i]++;
+            }
+        }
+
+        uint8 classId = uint8((rand >> 48) % 4) + 1;
+
+        return HeroStats({
+            class: classId,
+            _STR: baseStats[0],
+            _DEX: baseStats[1],
+            _INT: baseStats[2],
+            _VIT: baseStats[3],
+            _CHA: baseStats[4],
+            _LCK: baseStats[5],
+            imgId: getImgId(classId, maxStatIndex + 1),
+            isNotsoulbound: false,
+            rarity: rarity,
+            tokenId: nextTokenId,
+            owner: msg.sender
+        });
+    }
+
+    function getImgId(uint8 classId, uint8 statIndex) internal pure returns (uint16) {
+        require(classId >= 1 && classId <= 4, "Invalid class ID");
+        require(statIndex >= 1 && statIndex <= 6, "Invalid stat index");
+
+        if (classId == 1) {
+            return statIndex;
+        } else if (classId == 2) {
+            return statIndex + 6;
+        } else if (classId == 3) {
+            return statIndex + 12;
+        } else if (classId == 4) {
+            return statIndex + 18;
+        }
+    }
+//__________________________________________________________Get functions__________________________________________________________
+
+    function getcompatibility(address _ownerverif, uint256 _tokenid) external pure returns (bool) {
+        return true;
+    }
+
+    function getNextTokenId() external view returns (uint256) {
+        return nextTokenId;
+    }
+
+    function getNextUniqueimgId() external view returns (uint16) {
+        return nextUniqueimgId;
+    }
+
+    function getHeroInfo(address owner, uint8 requestType) external view returns (bytes memory) {
+        uint256 tokenId = ownerToTokenId[owner];
+        require(tokenId != 0, "No hero found for this address");
+        HeroStats memory stats = heroStats[tokenId];
+
+        if (requestType == 0) { // Toutes les informations
+            return abi.encode(
+                stats.class,
+                stats._STR,
+                stats._DEX,
+                stats._INT,
+                stats._VIT,
+                stats._CHA,
+                stats._LCK,
+                stats.imgId,
+                !stats.isNotsoulbound,
+                heroNames[tokenId],
+                stats.rarity,
+                stats.tokenId,
+                stats.owner
+            );
+        } else if (requestType == 1) { // Classe uniquement
+            return abi.encode(stats.class);
+        } else if (requestType == 2) { // Stats uniquement
+            return abi.encode(stats._STR, stats._DEX, stats._INT, stats._VIT, stats._CHA, stats._LCK);
+        } else if (requestType == 3) { // Nom et rareté
+            return abi.encode(heroNames[tokenId], stats.rarity);
+        } else if (requestType == 4) { // Image ID et soulbound status
+            return abi.encode(stats.imgId, !stats.isNotsoulbound);
+        } else if (requestType == 5) { // Propriétaire uniquement
+            return abi.encode(stats.owner);
+        } else {
+            revert("Invalid request type");
+        }
+    }
+
+    function getHeroInfoById(uint256 tokenId, uint8 requestType) external view returns (bytes memory) {
+        require(tokenId != 0 && tokenId < nextTokenId, "Invalid token ID");
+        HeroStats memory stats = heroStats[tokenId];
+
+        if (requestType == 0) { // Toutes les informations
+            return abi.encode(
+                stats.class,
+                stats._STR,
+                stats._DEX,
+                stats._INT,
+                stats._VIT,
+                stats._CHA,
+                stats._LCK,
+                stats.imgId,
+                !stats.isNotsoulbound,
+                heroNames[tokenId],
+                stats.rarity,
+                stats.tokenId,
+                stats.owner
+            );
+        } else if (requestType == 1) { // Classe uniquement
+            return abi.encode(stats.class);
+        } else if (requestType == 2) { // Stats uniquement
+            return abi.encode(stats._STR, stats._DEX, stats._INT, stats._VIT, stats._CHA, stats._LCK);
+        } else if (requestType == 3) { // Nom et rareté
+            return abi.encode(heroNames[tokenId], stats.rarity);
+        } else if (requestType == 4) { // Image ID et soulbound status
+            return abi.encode(stats.imgId, !stats.isNotsoulbound);
+        } else if (requestType == 5) { // Propriétaire uniquement
+            return abi.encode(stats.owner);
+        } else {
+            revert("Invalid request type");
+        }
+    }
+//__________________________________________________________Set functions__________________________________________________________
+
+    function setPublicMintActive(bool active) external {
+        require(msg.sender == _owner, "Only owner can toggle public mint");
+        publicMintActive = active;
+    }  
+    
+    function linkOwnerToTokenId(address owner, uint256 tokenId) external {
+        require(msg.sender == _owner || transferWhitelist[msg.sender], "Only owner or whitelisted can link");
+        require(owner != address(0), "Invalid owner address");
+        require(tokenId > 0 && tokenId < nextTokenId, "Invalid token ID");
+        require(ownerOf(tokenId) == owner, "Owner does not own this token");
+        
+        ownerToTokenId[owner] = tokenId;
+        heroStats[tokenId].owner = owner;
+    }
+
+    function changeHeroName(uint256 tokenId, string memory newName) external {
+        require(ownerOf(tokenId) == msg.sender, "Not the owner of this hero");
+        require(heroStats[tokenId].rarity == COMMON, "Only common heroes can be renamed");
+        require(bytes(newName).length > 0, "Name cannot be empty");
+        require(bytes(newName).length <= 32, "Name too long");
+        heroNames[tokenId] = newName;
+    }
+
+    function setHeroStats(
+        uint256 tokenId,
+        uint8 _STR,
+        uint8 _DEX,
+        uint8 _INT,
+        uint8 _VIT,
+        uint8 _CHA,
+        uint8 _LCK
+    ) external {
+        require(transferWhitelist[msg.sender], "Only whitelisted addresses can modify stats");
+        require(ownerOf(tokenId) != address(0), "Token does not exist");
+        
+        HeroStats storage stats = heroStats[tokenId];
+        stats._STR = _STR;
+        stats._DEX = _DEX;
+        stats._INT = _INT;
+        stats._VIT = _VIT;
+        stats._CHA = _CHA;
+        stats._LCK = _LCK;
+    }
+
+    function setSoulbound(uint256 tokenId, bool soulbound) external {
+        require(msg.sender == _owner || transferWhitelist[msg.sender], "Only owner or whitelisted contracts can toggle soulbound");
+        require(ownerOf(tokenId) != address(0), "Token does not exist");
+        heroStats[tokenId].isNotsoulbound = soulbound;
+    }
+
+    function setTransferWhitelist(address addr, bool status) external {
+        require(msg.sender == _owner, "Only owner can modify whitelist");
+        transferWhitelist[addr] = status;
+    }
+
+    function setRarityProbabilities(
+        uint256 common,
+        uint256 rare,
+        uint256 epic,
+        uint256 legendary
+    ) external {
+        require(msg.sender == _owner, "Only owner can set rarity probabilities");
+        require(common + rare + epic + legendary == 100000, "Probabilities must sum to 100000");
+        require(common > 0 && rare > 0 && epic > 0 && legendary > 0, "All probabilities must be greater than 0");
+        
+        rarityProbs = RarityProbabilities(common, rare, epic, legendary);
+    }
+//__________________________________________________________override functions__________________________________________________________
+
+    function approve(address to, uint256 tokenId) public virtual override {
+        require(heroStats[tokenId].isNotsoulbound, "Soulbound: approve blocked");
+        super.approve(to, tokenId);
+    }
+
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 firstTokenId,
+        uint256 batchSize
+    ) internal virtual override {
+        super._beforeTokenTransfer(from, to, firstTokenId, batchSize);
+        
+        if (from != address(0)) {
+            require(heroStats[firstTokenId].isNotsoulbound, "Soulbound: transfer blocked");
+            ownerToTokenId[from] = 0;
+            heroStats[firstTokenId].owner = address(0);
+        }
+        if (to != address(0)) {
+            if (msg.sender != address(this)) {
+                require(transferWhitelist[to] || from == address(0), "Recipient not whitelisted");
+            }
+            ownerToTokenId[to] = firstTokenId;
+            heroStats[firstTokenId].owner = to;
+        }
+    }
+
+    function setApprovalForAll(address _operator, bool _approved) public virtual override {
+        revert("Soulbound: setApprovalForAll blocked");
+    }
+
+    function transferFrom(address from, address to, uint256 tokenId) public virtual override {
+        require(heroStats[tokenId].isNotsoulbound, "Soulbound: transfer blocked");
+        if (msg.sender != address(this)) {
+            require(transferWhitelist[to] || from == address(0), "Recipient not whitelisted");
+        }
+        super.transferFrom(from, to, tokenId);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId) public virtual override {
+        safeTransferFrom(from, to, tokenId, "");
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public virtual override {
+        require(heroStats[tokenId].isNotsoulbound, "Soulbound: transfer blocked");
+        if (msg.sender != address(this)) {
+            require(transferWhitelist[to] || from == address(0), "Recipient not whitelisted");
+        }
+        super.safeTransferFrom(from, to, tokenId, data);
+    }
+
+    
+
+    
+}

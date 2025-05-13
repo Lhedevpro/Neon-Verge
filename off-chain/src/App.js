@@ -6,7 +6,8 @@ function App() {
   return (
     <div className="App" style={{ '--background-image': 'url(/imgs/Fond.jpg)' }}>
       <header className="App-header">
-        <h1>Neon Verge Heroes</h1>
+      <img src="/imgs/Logo.png" alt="Neon Verge Logo" className="App-logo" />
+      <h1>Neon Verge Heroes</h1>
       </header>
       <main>
         <HeroNFT />

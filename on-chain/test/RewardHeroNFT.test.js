@@ -169,4 +169,34 @@ describe("RewardHeroNFT", function () {
                 .to.be.revertedWith("Only owner can modify whitelist");
         });
     });
+    describe("Transferts de héros", function () {
+        it("doit transférer un héros de addr1 à addr2 et mettre à jour les stats", async function () {
+            // Ajouter addr1 et addr2 à la whitelist
+            await contract.connect(owner).setTransferWhitelist(addr1.address, true);
+            await contract.connect(owner).setTransferWhitelist(addr2.address, true);
+    
+            // Mint un héros à addr1
+            await contract.connect(addr1).mintCommonHero();
+    
+            // Le token minté automatiquement a l’ID 2 (Genesis = ID 1)
+            const tokenId = 2;
+
+            await contract.connect(owner).setSoulbound(tokenId, true);
+    
+            // Vérifie que addr1 possède bien le héros
+            expect(await contract.ownerOf(tokenId)).to.equal(addr1.address);
+    
+            // Transfert de addr1 vers addr2
+            await contract.connect(addr1).transferFrom(addr1.address, addr2.address, tokenId);
+    
+            // Vérifie que addr2 est maintenant propriétaire du token
+            expect(await contract.ownerOf(tokenId)).to.equal(addr2.address);
+    
+            // Vérifie que heroStats a bien été mis à jour
+            const stats = await contract.heroStats(tokenId);
+            expect(stats.owner).to.equal(addr2.address);
+        });
+    });
+    
+      
 }); 

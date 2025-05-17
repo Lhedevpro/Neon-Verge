@@ -11,7 +11,7 @@ contract RewardHeroNFT is ERC721 {
     uint8 public constant EPIC = 2;
     uint8 public constant LEGENDARY = 3;
     struct HeroStats {
-        uint8 class;
+        uint8 classId;
         uint16 imgId;
         uint8 rarity;
     }
@@ -25,11 +25,12 @@ contract RewardHeroNFT is ERC721 {
 
     RarityProbabilities public rarityProbs = RarityProbabilities(70000, 25000, 4990, 10);
 
-    mapping(uint256 => bool) public isTranferable;
 
     mapping(uint256 => uint8[6]) public stats;
     mapping(uint256 => HeroStats) public heroStats;
     mapping(uint256 => string) public heroNames;
+    mapping(uint256 => bool) public isTransferable;
+    mapping(uint256 => bool) private isCommon;
     mapping(address => uint256) public ownerToTokenId;
     mapping(address => bool) public transferWhitelist;
     mapping(address => bool) private _hasMinted;
@@ -38,7 +39,6 @@ contract RewardHeroNFT is ERC721 {
     uint256 public nextTokenId = 1;
     uint16 public nextUniqueimgId = 26;
     address private immutable _owner;
-    uint8 maxhero = 1;
 //__________________________________________________________Constructor__________________________________________________________
     constructor() ERC721 ("Neon Verge: Heroes", "NEONHERO"){
         _owner = msg.sender;
@@ -54,7 +54,7 @@ contract RewardHeroNFT is ERC721 {
     function transferForWhitelistedContract(uint256 tokenId, address to) external {
         require(transferWhitelist[to] || ownerOf(tokenId) == msg.sender, "Target contract not whitelisted");
 
-        // transfert ERC721 classique
+        // transfert ERC721 classIdique
         _transfer(msg.sender, to, tokenId);
 
         // Supprime le lien actif joueur → token (pour autoriser un nouveau mint)
@@ -63,13 +63,14 @@ contract RewardHeroNFT is ERC721 {
     
     function mintCommonHero() external returns (uint256) {
         require(publicMintActive, "Public mint is not active");
-        require(!_hasMinted[msg.sender], "You can only mint 1 heroes");
-        require(balanceOf(msg.sender) <= maxhero, "You can only mint 1 heroes");
+        require(!_hasMinted[msg.sender], "You can only mint 1 hero");
+        require(balanceOf(msg.sender) <= 1, "You can only mint 1 hero");
         _hasMinted[msg.sender] = true;
         _safeMint(msg.sender, nextTokenId);
-        heroStats[nextTokenId] = generateRandomStats("NV Hero", COMMON);
+        generateRandomStats(nextTokenId, COMMON);
         heroNames[nextTokenId] = "NV Hero";
         uint256 currentTokenId = nextTokenId;
+        isCommon[nextTokenId] = true;
         nextTokenId++;
         return currentTokenId;
     }
@@ -77,25 +78,23 @@ contract RewardHeroNFT is ERC721 {
 
     function mintHero(string memory name, bool useNewImgId) external {
         require(publicMintActive, "Public mint is not active");
-        require(balanceOf(msg.sender) <= maxhero, "You can only mint 1 heroes");
+        require(balanceOf(msg.sender) <= 1, "You can only mint 1 hero");
         
         uint8 rarity = generateRandomRarity();
         _safeMint(msg.sender, nextTokenId);
-        HeroStats memory stats = generateRandomStats(name, rarity);
+        generateRandomStats(nextTokenId, rarity);
         
         if (useNewImgId) {
-            stats.imgId = nextUniqueimgId;
+            heroStats[nextTokenId].imgId = nextUniqueimgId;
             nextUniqueimgId++;
         }
-        
-        heroStats[nextTokenId] = stats;
         heroNames[nextTokenId] = name;
         nextTokenId++;
     }
 
     function ownerMint(
         string memory name,
-        uint8 class,
+        uint8 classId,
         uint8 _STR,
         uint8 _DEX,
         uint8 _INT,
@@ -103,7 +102,7 @@ contract RewardHeroNFT is ERC721 {
         uint8 _CHA,
         uint8 _LCK,
         uint16 imgId,
-        bool isNotsoulbound,
+        bool soulbound,
         uint8 rarity,
         bool randomRarity,
         bool manualImgId,
@@ -125,19 +124,12 @@ contract RewardHeroNFT is ERC721 {
         }
         
         heroStats[nextTokenId] = HeroStats(
-            class,
-            _STR,
-            _DEX,
-            _INT,
-            _VIT,
-            _CHA,
-            _LCK,
+            classId,
             imgId,
-            isNotsoulbound,
-            finalRarity,
-            nextTokenId,
-            heroOwner
+            finalRarity
         );
+        stats[nextTokenId] = [_STR, _DEX, _INT, _VIT, _CHA, _LCK];
+        isTransferable[nextTokenId] = soulbound;
         heroNames[nextTokenId] = name;
         nextTokenId++;
     }
@@ -193,24 +185,24 @@ contract RewardHeroNFT is ERC721 {
             uint256 shifted = uint256(keccak256(abi.encode(rand, i)));
             baseStats[i] = uint8((shifted % (maxStat - minStat + 1)) + minStat);
         }
-
+        uint8 class = uint8((rand >> 48) % 4);
         stats[tokenId] = baseStats;
-        heroStats[tokenId].class = uint8((rand >> 48) % 4);
+        heroStats[tokenId].classId = class;
         heroStats[tokenId].rarity = rarity;
     }
 
 
-    function getImgId(uint8 classId, uint8 statIndex) internal pure returns (uint16) {
-        require(classId >= 1 && classId <= 4, "Invalid class ID");
+    function getImgId(uint8 classIdId, uint8 statIndex) internal pure returns (uint16) {
+        require(classIdId >= 1 && classIdId <= 4, "Invalid classId ID");
         require(statIndex >= 1 && statIndex <= 6, "Invalid stat index");
 
-        if (classId == 1) {
+        if (classIdId == 1) {
             return statIndex;
-        } else if (classId == 2) {
+        } else if (classIdId == 2) {
             return statIndex + 6;
-        } else if (classId == 3) {
+        } else if (classIdId == 3) {
             return statIndex + 12;
-        } else if (classId == 4) {
+        } else if (classIdId == 4) {
             return statIndex + 18;
         }
     }
@@ -228,36 +220,72 @@ contract RewardHeroNFT is ERC721 {
         return nextUniqueimgId;
     }
 
+    function getHeroStatsRaw(uint256 tokenId)
+        external
+        view
+        returns (
+            uint8 classId,
+            uint8 stat0,
+            uint8 stat1,
+            uint8 stat2,
+            uint8 stat3,
+            uint8 stat4,
+            uint8 stat5,
+            uint16 imgId,
+            bool transferable,
+            uint8 rarity
+        )
+    {
+        require(_exists(tokenId), "Invalid token");
+        HeroStats memory h = heroStats[tokenId];
+        uint8[6] memory tempstat = stats[tokenId];
+        return (
+            h.classId,
+            tempstat[0], tempstat[1], tempstat[2], tempstat[3], tempstat[4],tempstat[5],
+            h.imgId,
+            isTransferable[tokenId],
+            h.rarity
+        );
+    }
+
+
     function getHeroInfo(address owner, uint8 requestType) external view returns (bytes memory) {
         uint256 tokenId = ownerToTokenId[owner];
         require(tokenId != 0, "No hero found for this address");
         HeroStats memory hstats = heroStats[tokenId];
         uint8[6] memory stat = stats[tokenId];
+        uint16 t_ID;
+        if (isCommon[tokenId]){
+            t_ID = computeImgId(hstats.classId, stat);
+        }
+        else {
+            t_ID = hstats.imgId;
+        }
 
         if (requestType == 0) { // Toutes les informations
             return abi.encode(
-                hstats.class,
+                hstats.classId,
                 stat[0],
                 stat[1],
                 stat[2],
                 stat[3],
                 stat[4],
                 stat[5],
-                hstats.imgId,
-                isTranferable[tokenId],
+                t_ID,
+                isTransferable[tokenId],
                 heroNames[tokenId],
                 hstats.rarity,
                 tokenId,
                 owner
             );
-        } else if (requestType == 1) { // Classe uniquement
-            return abi.encode(hstats.class);
+        } else if (requestType == 1) { // classIde uniquement
+            return abi.encode(hstats.classId);
         } else if (requestType == 2) { // Stats uniquement
             return abi.encode(stat[0], stat[1], stat[2], stat[3], stat[4], stat[5]);
         } else if (requestType == 3) { // Nom et rareté
             return abi.encode(heroNames[tokenId], hstats.rarity);
         } else if (requestType == 4) { // Image ID et soulbound status
-            return abi.encode(hstats.imgId, isTranferable[tokenId]);
+            return abi.encode(hstats.imgId, isTransferable[tokenId]);
         } else if (requestType == 5) { // Propriétaire uniquement
             return abi.encode(owner);
         } else {
@@ -265,14 +293,14 @@ contract RewardHeroNFT is ERC721 {
         }
     }
 
-    function computeImgId(uint8 classId, uint8[6] memory stats) internal pure returns (uint16) {
+    function computeImgId(uint8 classIdId, uint8[6] memory mstats) internal pure returns (uint16) {
         uint8 maxIndex = 0;
         for (uint8 i = 1; i < 6; i++) {
-            if (stats[i] > stats[maxIndex]) {
+            if (mstats[i] > mstats[maxIndex]) {
                 maxIndex = i;
             }
         }
-        return uint16(classId * 6 + maxIndex + 1); // imgId 1 à 24
+        return uint16(classIdId * 6 + maxIndex + 1); // imgId 1 à 24
     }
 
 
@@ -281,31 +309,38 @@ contract RewardHeroNFT is ERC721 {
         require(tokenId != 0, "No hero found for this address");
         HeroStats memory hstats = heroStats[tokenId];
         uint8[6] memory stat = stats[tokenId];
+        uint16 t_ID;
+        if (isCommon[tokenId]){
+            t_ID = computeImgId(hstats.classId, stat);
+        }
+        else {
+            t_ID = hstats.imgId;
+        }
 
         if (requestType == 0) { // Toutes les informations
             return abi.encode(
-                hstats.class,
+                hstats.classId,
                 stat[0],
                 stat[1],
                 stat[2],
                 stat[3],
                 stat[4],
                 stat[5],
-                hstats.imgId,
-                isTranferable[tokenId],
+                t_ID,
+                isTransferable[tokenId],
                 heroNames[tokenId],
                 hstats.rarity,
                 tokenId,
                 owner
             );
-        } else if (requestType == 1) { // Classe uniquement
-            return abi.encode(hstats.class);
+        } else if (requestType == 1) { // classIde uniquement
+            return abi.encode(hstats.classId);
         } else if (requestType == 2) { // Stats uniquement
             return abi.encode(stat[0], stat[1], stat[2], stat[3], stat[4], stat[5]);
         } else if (requestType == 3) { // Nom et rareté
             return abi.encode(heroNames[tokenId], hstats.rarity);
         } else if (requestType == 4) { // Image ID et soulbound status
-            return abi.encode(hstats.imgId, isTranferable[tokenId]);
+            return abi.encode(hstats.imgId, isTransferable[tokenId]);
         } else if (requestType == 5) { // Propriétaire uniquement
             return abi.encode(owner);
         } else {
@@ -354,7 +389,7 @@ contract RewardHeroNFT is ERC721 {
     function setSoulbound(uint256 tokenId, bool soulbound) external {
         require(msg.sender == _owner || transferWhitelist[msg.sender], "Only owner or whitelisted contracts can toggle soulbound");
         require(ownerOf(tokenId) != address(0), "Token does not exist");
-        isTranferable[tokenId] = soulbound;
+        isTransferable[tokenId] = soulbound;
     }
 
     function setTransferWhitelist(address addr, bool status) external {
@@ -374,10 +409,10 @@ contract RewardHeroNFT is ERC721 {
         
         rarityProbs = RarityProbabilities(common, rare, epic, legendary);
     }
-//__________________________________________________________override functions__________________________________________________________
+//__________________________________________________________override functions_____________________________________________________
 
     function approve(address to, uint256 tokenId) public virtual override {
-        require(isTranferable[tokenId], "Soulbound: approve blocked");
+        require(isTransferable[tokenId], "Soulbound: approve blocked");
         super.approve(to, tokenId);
     }
 
@@ -390,7 +425,7 @@ contract RewardHeroNFT is ERC721 {
         super._beforeTokenTransfer(from, to, firstTokenId, batchSize);
         
         if (from != address(0)) {
-            require(isTranferable[firstTokenId], "Soulbound: approve blocked");
+            require(isTransferable[firstTokenId], "Soulbound: approve blocked");
             ownerToTokenId[from] = 0;
         }
         if (to != address(0)) {
@@ -406,7 +441,7 @@ contract RewardHeroNFT is ERC721 {
     }
 
     function transferFrom(address from, address to, uint256 tokenId) public virtual override {
-        require(isTranferable[tokenId], "Soulbound: transfer blocked");
+        require(isTransferable[tokenId], "Soulbound: transfer blocked");
         if (msg.sender != address(this)) {
             require(transferWhitelist[to] || from == address(0), "Recipient not whitelisted");
         }
@@ -418,7 +453,7 @@ contract RewardHeroNFT is ERC721 {
     }
 
     function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public virtual override {
-        require(isTranferable[tokenId], "Soulbound: transfer blocked");
+        require(isTransferable[tokenId], "Soulbound: transfer blocked");
         if (msg.sender != address(this)) {
             require(transferWhitelist[to] || from == address(0), "Recipient not whitelisted");
         }

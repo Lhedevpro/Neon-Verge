@@ -319,7 +319,7 @@ contract RewardHeroNFT is ERC721 {
 
         if (requestType == 0) { // Toutes les informations
             return abi.encode(
-                hstats.classId,
+                hstats.classId + 1,
                 stat[0],
                 stat[1],
                 stat[2],

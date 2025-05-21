@@ -1,5 +1,6 @@
 .app-container {
     position: relative;
+    flex: 1;
     min-height: 100vh;
     overflow: visible;
     font-family: 'Orbitron', sans-serif;
@@ -31,21 +32,6 @@
     gap: 2rem;
   }
   
-  /* ✅ Conteneur image + stats */
-  /*.hero-left {
-    display: flex;
-    gap: 2rem;
-    align-items: flex-start;
-  }*/
-  
-  /* ✅ Image */
-  /*.hero-image-wrapper {
-    position: relative;
-    width: 768px;
-    height: 1152px;
-    flex-shrink: 0;
-  }*/
-  
   
   .hero-image-wrapper {
     width: auto !important;
@@ -61,9 +47,25 @@
       height: 100%;
       object-fit: contain;
       border-radius: 12px;
-      box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+      /*box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);*/
       padding: 0;
       margin: 0;
+    }
+    /* Rarity-specific glow effect */
+    .rarity-0 {
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.3); /* Common - gris léger */
+    }
+
+    .rarity-1 {
+      box-shadow: 0 0 20px rgba(19, 231, 161, 0.4);   /* Rare - bleu */
+    }
+
+    .rarity-2 {
+      box-shadow: 0 0 20px rgba(218, 179, 10, 0.4);   /* Epic - violet */
+    }
+
+    .rarity-3 {
+      box-shadow: 0 0 20px rgba(231, 20, 20, 0.5);   /* Legendary - or */
     }
 
     .hero-container {
@@ -134,23 +136,22 @@
 
   /* ✅ Lore */
   .project-explainer {
-    position: absolute;
-    top: 330px;
-    left: 60%;
-    transform: translateX(-50%);
-    width: 800px;
-    z-index: 10;
-    text-align: center;
-    padding: 2rem;
-    background: rgba(0, 0, 0, 0.45);
-    border: 1px solid #00ffe1;
-    border-radius: 8px;
-    box-shadow: 0 0 20px #00ffe1;
-    color: #e0f7ff;
-    font-family: 'Orbitron', sans-serif;
-    backdrop-filter: blur(8px);
-    margin-bottom: 2rem;
-  }
+  max-width: 800px;
+  margin: 330px auto 2rem auto; /* top / sides auto / bottom */
+  padding: 2rem;
+  text-align: center;
+
+  transform: translateX(20%);
+
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid #00ffe1;
+  border-radius: 8px;
+  box-shadow: 0 0 20px #00ffe1;
+  color: #e0f7ff;
+  font-family: 'Orbitron', sans-serif;
+  backdrop-filter: blur(8px);
+}
+
   
   .project-explainer h3 {
     color: #80ffea;
@@ -233,7 +234,7 @@
   }
   
   .footer-border {
-    position: fixed;
+    position: relative;
     bottom: 0;
     left: 0;
     width: 100%;

@@ -13,6 +13,8 @@ function HeroNFT() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [heroName, setHeroName] = useState('');
+    
+
 
     const switchToLocalNetwork = async () => {
         try {
@@ -136,6 +138,7 @@ function HeroNFT() {
         }
     };
 
+
     const mintHero = async () => {
         try {
             setLoading(true);
@@ -184,6 +187,9 @@ function HeroNFT() {
             setError(err.message);
         }
     };
+
+    
+    const rarityClass = heroStats ? `rarity-${heroStats.rarity}` : '';
 
     return (
         <div className="app-container">
@@ -274,7 +280,7 @@ function HeroNFT() {
                                 <div className="hero-name-container">
                                     <h2 className="hero-name">{heroName}</h2>
                                 </div>
-                                <div className="hero-image-wrapper">
+                                <div className={`hero-image-wrapper ${rarityClass}`}>
                                     <img
                                         src={`/imgs/${heroStats.imgId}.png`}
                                         alt={`Hero ${heroStats.name}`}
@@ -305,8 +311,6 @@ function HeroNFT() {
                     )}
                 </>
             )}
-
-            <div className="footer-border"></div>
         </div>
     );
 }

@@ -12,6 +12,13 @@ function App() {
       <main>
         <HeroNFT />
       </main>
+      <footer className="App-header">
+        <p>Neon Verge © 2025</p>
+        <p>
+          Available for freelance Web3 missions. Reach me on&nbsp;
+          <a href="https://twitter.com/UnblinkingEyeNG" target="_blank">X</a>.
+        </p>
+      </footer>
     </div>
   );
 }

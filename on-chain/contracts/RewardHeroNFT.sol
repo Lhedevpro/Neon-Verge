@@ -44,7 +44,7 @@ contract RewardHeroNFT is ERC721 {
         _owner = msg.sender;
         transferWhitelist[msg.sender] = true;
         _safeMint(msg.sender, nextTokenId);
-        heroStats[nextTokenId] = HeroStats(1, 25, LEGENDARY);
+        heroStats[nextTokenId] = HeroStats(0, 25, LEGENDARY);
         stats[nextTokenId] = [20,20,20,20,20,20];
         heroNames[nextTokenId] = "Genesis";
         nextTokenId++;
@@ -52,7 +52,8 @@ contract RewardHeroNFT is ERC721 {
 //__________________________________________________________Mint functions__________________________________________________________
 
     function transferForWhitelistedContract(uint256 tokenId, address to) external {
-        require(transferWhitelist[to] || ownerOf(tokenId) == msg.sender, "Target contract not whitelisted");
+        require(transferWhitelist[to] , "Target contract not whitelisted");
+        require((ownerOf(tokenId) == msg.sender || transferWhitelist[msg.sender]), "Only owner or whightlisted can do it");
 
         // transfert ERC721 classIdique
         _transfer(msg.sender, to, tokenId);
@@ -78,7 +79,7 @@ contract RewardHeroNFT is ERC721 {
 
     function mintHero(string memory name, bool useNewImgId) external {
         require(publicMintActive, "Public mint is not active");
-        require(balanceOf(msg.sender) <= 1, "You can only mint 1 hero");
+        require(transferWhitelist[msg.sender], "Only owner can mint special heroes");
         
         uint8 rarity = generateRandomRarity();
         _safeMint(msg.sender, nextTokenId);
@@ -108,7 +109,7 @@ contract RewardHeroNFT is ERC721 {
         bool manualImgId,
         address heroOwner
     ) external {
-        require(msg.sender == _owner, "Only owner can mint special heroes");
+        require(transferWhitelist[msg.sender], "Only owner can mint special heroes");
         require(heroOwner != address(0), "Invalid hero owner address");
         
         if (!manualImgId) {
@@ -190,27 +191,7 @@ contract RewardHeroNFT is ERC721 {
         heroStats[tokenId].classId = class;
         heroStats[tokenId].rarity = rarity;
     }
-
-
-    function getImgId(uint8 classIdId, uint8 statIndex) internal pure returns (uint16) {
-        require(classIdId >= 1 && classIdId <= 4, "Invalid classId ID");
-        require(statIndex >= 1 && statIndex <= 6, "Invalid stat index");
-
-        if (classIdId == 1) {
-            return statIndex;
-        } else if (classIdId == 2) {
-            return statIndex + 6;
-        } else if (classIdId == 3) {
-            return statIndex + 12;
-        } else if (classIdId == 4) {
-            return statIndex + 18;
-        }
-    }
 //__________________________________________________________Get functions__________________________________________________________
-
-    function getcompatibility(address _ownerverif, uint256 _tokenid) external pure returns (bool) {
-        return true;
-    }
 
     function getNextTokenId() external view returns (uint256) {
         return nextTokenId;
@@ -264,7 +245,7 @@ contract RewardHeroNFT is ERC721 {
 
         if (requestType == 0) { // Toutes les informations
             return abi.encode(
-                hstats.classId,
+                hstats.classId + 1,
                 stat[0],
                 stat[1],
                 stat[2],
@@ -364,7 +345,7 @@ contract RewardHeroNFT is ERC721 {
     }
 
     function changeHeroName(uint256 tokenId, string memory newName) external {
-        require(ownerOf(tokenId) == msg.sender, "Not the owner of this hero");
+        require(transferWhitelist[msg.sender], "Not the owner of this hero");
         require(heroStats[tokenId].rarity == COMMON, "Only common heroes can be renamed");
         require(bytes(newName).length > 0, "Name cannot be empty");
         require(bytes(newName).length <= 32, "Name too long");
